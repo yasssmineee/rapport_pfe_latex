@@ -16,7 +16,7 @@ La figure~\ref{fig:flux-donnees} synthétise ces deux chemins sous la forme d'un
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\textwidth]{figures/flux_donnees_global.png}
+    \includegraphics[width=\textwidth,height=0.85\textheight,keepaspectratio]{figures/flux_donnees_global.png}
     \caption{Flux de données global de la plateforme (élaboration personnelle).}
     \label{fig:flux-donnees}
 \end{figure}
@@ -32,7 +32,7 @@ La figure~\ref{fig:architecture-logique} présente l'organisation fonctionnelle 
     \label{fig:architecture-logique}
 \end{figure}
 
-Les données entrantes, comptes, crédits, historique de remboursement et données financières, issues du schéma \texttt{staging} présenté au chapitre 3, sont d'abord soumises à une étape de préparation et de qualité : un contrôle de qualité des données, une transformation, puis une construction du Feature Store qui alimente la modélisation.
+Les données réelles entrantes, principalement constituées des informations relatives aux clients et à leurs comptes, sont issues du schéma \texttt{staging} présenté au chapitre 3. Elles sont complétées, dans le cadre du projet, par les historiques de crédit et de remboursement synthétiques construits pour les besoins de la modélisation, également présentés au chapitre 3. L'ensemble est d'abord soumis à une étape de préparation et de qualité : un contrôle de qualité des données, une transformation, puis une construction du Feature Store qui alimente la modélisation.
 
 Les moteurs métier exploitent les données préparées selon les besoins propres à chacun des deux volets déjà distingués au chapitre 1, plutôt qu'une alimentation identique. Pour le suivi de portefeuille, le Feature Store ci-dessus alimente les traitements batch et les modèles entraînés à partir des historiques disponibles : le parcours Portfolio Analytics mobilise ces données et ces modèles pour produire les indicateurs de risque, les pertes attendues, le capital économique et les mesures de rentabilité présentés aux chapitres 3 et 4. Pour l'Origination, les caractéristiques nécessaires à l'évaluation d'un dossier sont constituées séparément, à partir des informations du dossier et de l'historique client exploitable, pour alimenter une évaluation individuelle, probabilité de défaut, perte en cas de défaut, exposition au défaut, perte attendue et capital forfaitaire, rentabilité, puis les règles de décision présentées en section~4.5. Ces traitements produisent des résultats distincts selon le volet : une recommandation d'octroi, éventuellement assortie de conditions ou orientée vers une revue manuelle, accompagnée de son explication pour l'Origination ; des snapshots de risque, des indicateurs et des scénarios, des résultats de pilotage pour le suivi de portefeuille.
 
@@ -51,7 +51,7 @@ La figure~\ref{fig:architecture-physique} détaille la réalisation technique de
 
 Le poste client accède à la plateforme par un navigateur web, qui charge une application front-end développée en React (version 18.3.1) à l'aide de l'outil de développement Vite (version 5.4), servie localement sur le port 5173. Cette application communique avec le serveur applicatif par des requêtes HTTP/JSON, relayées vers le port 8000 par un mécanisme de proxy.
 
-Le serveur applicatif local, un backend FastAPI exécuté par le serveur Uvicorn, regroupe plusieurs composants. Les routes de l'API, les services métier et l'authentification par rôle orchestrent les traitements. Les moteurs de calcul du risque, de rentabilité et de décision, présentés aux chapitres 3 et 4, probabilité de défaut, perte en cas de défaut, exposition au défaut, perte attendue, rentabilité et moteur de décision, s'exécutent localement, sans dépendance à un service externe. Un agent de vérification documentaire et le moteur d'interprétabilité SHAP complètent ce serveur. L'assistant conversationnel, détaillé en section~5.5, s'appuie sur une recherche hybride locale, combinant un index FAISS chargé en mémoire et une recherche lexicale BM25, avant de faire appel à un fournisseur externe de génération de texte : Groq en priorité, ou Anthropic lorsque Groq n'est pas configuré, un seul des deux étant utilisé à la fois selon la disponibilité d'une clé d'accès, avec un repli local déterministe si aucun des deux n'est disponible.
+Le serveur applicatif local, un backend FastAPI exécuté par le serveur Uvicorn, regroupe plusieurs composants. Les routes de l'API, les services métier et l'authentification par rôle orchestrent les traitements. Les moteurs de calcul du risque, de rentabilité et de décision, présentés aux chapitres 3 et 4, probabilité de défaut, perte en cas de défaut, exposition au défaut, perte attendue, rentabilité et moteur de décision, s'exécutent localement, sans dépendance à un service externe. Un agent de vérification documentaire et le moteur d'interprétabilité SHAP complètent ce serveur. L'assistant conversationnel, détaillé en section~5.5, s'appuie sur une recherche hybride locale, combinant un index FAISS chargé en mémoire et une recherche lexicale BM25, avant de faire appel à un fournisseur externe de génération de texte : Groq en priorité, ou Anthropic lorsque Groq n'est pas disponible à l'initialisation, un seul des deux étant utilisé à la fois selon cette disponibilité, avec un repli local déterministe si aucun des deux n'est disponible.
 
 Le serveur applicatif et les traitements batch, des scripts Python mobilisant les bibliothèques scikit-learn, XGBoost, LightGBM, SHAP et Optuna déjà présentées au chapitre 3, se connectent tous deux directement à la même base PostgreSQL locale, organisée selon les schémas présentés en section~5.1.
 
@@ -89,7 +89,7 @@ La figure~\ref{fig:activite-decision} représente, sous la forme d'un diagramme 
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\textwidth]{figures/activite_decision_origination.png}
+    \includegraphics[width=\textwidth,height=0.85\textheight,keepaspectratio]{figures/activite_decision_origination.png}
     \caption{Diagramme d'activité du processus de décision Origination (élaboration personnelle).}
     \label{fig:activite-decision}
 \end{figure}
@@ -117,7 +117,7 @@ L'assistant conversationnel déjà introduit en section~5.1 interroge les donné
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/diagramme_classes_assistant.png}
+\includegraphics[width=\textwidth]{figures/diagramme_classes_assistant.png}
 \caption{Diagramme de classes du sous-système Assistant IA}
 \label{fig:diagramme-classes-assistant}
 \end{figure}
