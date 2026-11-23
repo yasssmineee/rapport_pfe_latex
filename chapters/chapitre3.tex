@@ -1,0 +1,274 @@
+\chapter{Préparation des données et modélisation du risque de crédit}
+
+Ce chapitre présente les données mobilisées pour ce projet et leur transformation progressive en modèles de risque exploitables. Il part de la source unique dont dispose le projet, en expose la compréhension, le nettoyage et la construction de la variable cible, avant de détailler le développement des modèles de probabilité de défaut puis de perte en cas de défaut. Il se referme sur l'évaluation, la sélection et l'interprétabilité de ces modèles, dont les artefacts entraînés sont ensuite exploités pour la quantification du risque présentée au chapitre suivant.
+
+\section{Compréhension et exploration des données}
+
+\subsection{Présentation de la source des données}
+
+Les données utilisées dans ce projet proviennent d'un unique fichier source réel, \texttt{Base\_depot.xlsx}, extrait du système d'information bancaire. Ce fichier contient des comptes de dépôt, et non des données de crédit : il sert de point d'ancrage, en fournissant une structure de clientèle réelle, clients, comptes, agences et encours, à partir de laquelle les données nécessaires à l'étude du risque de crédit ont ensuite été construites.
+
+\subsection{Description du jeu de données}
+
+Le tableau~\ref{tab:donnees-source} résume les principales caractéristiques de ce jeu de données, avant et après nettoyage.
+
+\begin{table}[htbp]
+    \centering
+    \footnotesize
+    \caption{Chiffres de référence du jeu de données source.}
+    \label{tab:donnees-source}
+    \begin{tabular}{p{7cm}p{4cm}}
+        \toprule
+        \textbf{Indicateur} & \textbf{Valeur} \\
+        \midrule
+        Lignes brutes & 211 825 \\
+        Lignes après nettoyage & 211 824 \\
+        Clients uniques & 154 619 \\
+        Comptes uniques & 211 824 \\
+        Agences uniques & 50 \\
+        Catégorie à encours élevé (assimilée au segment Entreprises dans la simulation) & 556 clients (0,36\,\%), représentant 40,1\,\% de l'encours total \\
+        Catégorie à encours standard (assimilée au segment Particuliers dans la simulation) & 154 063 clients (99,64\,\%), représentant 59,9\,\% de l'encours total \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Cette répartition ne correspond pas à une classification juridique des clients présente dans la source : elle a été construite à partir de leur niveau d'encours afin de définir deux catégories utilisées dans la simulation.
+
+\subsection{Limites de la source et recours aux données synthétiques}
+
+Cette source présente une limite déterminante pour la suite du projet : elle ne contient ni historique de crédit, ni défaut observé, seulement des comptes de dépôt. Les informations relatives aux crédits eux-mêmes, octroi, remboursement, défaut, n'existent donc pas dans les données réelles : elles ont été générées synthétiquement, à partir de la structure réelle de la clientèle et des comptes présentée ci-dessus. Les modèles prédictifs présentés dans la suite de ce chapitre n'ont ainsi pas été entraînés sur des défauts bancaires historiquement observés, mais sur des historiques de défaut générés et calibrés dans ce cadre, dont la construction est détaillée en section~3.3.
+
+\subsection{Traitement des encours négatifs}
+
+Parmi les comptes de la source réelle, 850 présentent un solde d'encours négatif. Ces comptes ont été conservés, plutôt qu'exclus ou corrigés, et signalés par un indicateur dédié : un encours négatif peut constituer une information comportementale potentiellement utile, qu'il aurait été dommageable de supprimer. Cette conservation ne préjuge toutefois pas de la nature de ces encours négatifs, qui ne correspondent pas nécessairement à un incident de paiement.
+
+\section{Nettoyage, qualité et préparation des données}
+
+\subsection{Nettoyage du fichier source}
+
+Le fichier source présente plusieurs anomalies traitées lors de sa préparation. Neuf colonnes présentent un taux de remplissage réel de 0~\% et sont supprimées : le choix a été de ne pas les imputer, aucun contenu réel ne permettant de justifier une valeur imputée. Une ligne contient par ailleurs un en-tête de colonne inséré accidentellement lors d'une exportation ; elle est supprimée par un filtre sur la devise. C'est cette même ligne qui présente l'unique valeur d'encours manquante du fichier, également supprimée par ce filtre. Les encours négatifs, traités séparément, ont été présentés en section~3.1.
+
+\subsection{Construction de la variable de segmentation}
+
+Pour distinguer les clients des segments Particuliers et Entreprises, introduits en section~3.1, une variable d'encours agrégé par client est d'abord calculée, en sommant l'encours de l'ensemble des comptes qu'il détient, y compris ses éventuels encours négatifs. Un client est affecté au segment Entreprises (simulé) si cet encours agrégé atteint ou dépasse 50 millions de XOF, et au segment Particuliers (simulé) en deçà de ce seuil.
+
+Ce seuil a été retenu après une analyse de sensibilité portant sur huit valeurs candidates, dont les résultats sont résumés dans le tableau~\ref{tab:seuil-segmentation}. Pour chacune, l'écart entre l'encours minimum du segment Entreprises et l'encours maximum du segment Particuliers a été mesuré.
+
+\begin{table}[htbp]
+    \centering
+    \footnotesize
+    \caption{Analyse de sensibilité du seuil de segmentation.}
+    \label{tab:seuil-segmentation}
+    \begin{tabular}{p{2.2cm}p{2.8cm}p{1.8cm}p{1.8cm}p{2.8cm}}
+        \toprule
+        \textbf{Seuil} & \textbf{Clients segment élevé} & \textbf{\% clients} & \textbf{\% encours} & \textbf{Écart de séparation} \\
+        \midrule
+        10 M XOF & 4 789 & 3,10\,\% & 68,4\,\% & 100 XOF \\
+        20 M XOF & 1 993 & 1,29\,\% & 55,1\,\% & 2 063 XOF \\
+        30 M XOF & 1 149 & 0,74\,\% & 48,0\,\% & 24 013 XOF \\
+        40 M XOF & 764 & 0,49\,\% & 43,3\,\% & 41 276 XOF \\
+        \textbf{50 M XOF} & \textbf{556} & \textbf{0,36\,\%} & \textbf{40,1\,\%} & \textbf{87 369 XOF} \\
+        60 M XOF & 420 & 0,27\,\% & 37,5\,\% & 268 992 XOF \\
+        75 M XOF & 304 & 0,20\,\% & 34,8\,\% & 493 012 XOF \\
+        100 M XOF & 201 & 0,13\,\% & 31,7\,\% & 132 188 XOF \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+À tous les seuils testés sur ces données, cet écart est positif, ce qui indique, sur les données étudiées, une séparation nette entre les deux populations plutôt qu'un chevauchement continu. Le seuil de 50 millions de XOF a été retenu comme compromis entre l'écart de séparation obtenu, la part d'encours qu'il permet d'isoler (40,1~\%) et le nombre de clients regroupés dans chaque segment.
+
+Cette segmentation reste une règle de simulation, configurable, et non une classification juridique des clients : le fichier source ne contient aucune variable permettant d'identifier le statut juridique d'un client, et ce seuil sert de proxy opérationnel.
+
+\subsection{Construction des variables explicatives et prévention des fuites de données}
+
+Les variables explicatives sont construites séparément pour chaque segment (respectivement dans \texttt{retail\_features.py} et \texttt{corporate\_features.py}), selon trois catégories communes : des variables statiques, connues au moment de l'octroi ; des variables comportementales pour le segment Particuliers, ou de migration de rating pour le segment Entreprises, qui retracent l'historique du client jusqu'à la date d'observation ; et des variables macroéconomiques, propres à cette même date.
+
+La construction de ces variables applique trois règles destinées à éviter toute fuite d'information entre les données disponibles au moment de la prédiction et celles utilisées pour l'évaluer. La variable de probabilité de défaut initiale est systématiquement exclue des variables explicatives. Le défaut à prédire, détaillé en section~3.3, est calculé sur une fenêtre strictement postérieure à la date d'observation : douze mois pour le segment Particuliers, quatre trimestres pour le segment Entreprises. Enfin, les comptes déjà en défaut à la date d'observation sont exclus, leur label n'étant pas défini.
+
+\subsection{Organisation du Feature Store pour la modélisation}
+
+Les variables ainsi construites sont organisées en deux pipelines distincts, l'un pour le segment Particuliers, l'autre pour le segment Entreprises. Cette séparation tient à la nature même des deux segments : leurs temporalités d'observation, mensuelle pour l'un, trimestrielle pour l'autre, ainsi que leurs variables explicatives, ne sont pas les mêmes, ce qui rend un traitement commun inapproprié. Les modèles construits à partir de ces deux pipelines sont présentés en section~3.4.
+
+\section{Construction de la variable cible}
+
+\subsection{Définition de l'événement de défaut}
+
+Le défaut d'un client est défini différemment selon le segment, tout en reposant sur une logique commune : la confirmation de la dégradation sur plusieurs périodes consécutives, plutôt que sur un seul constat ponctuel. Pour le segment Particuliers, un client est considéré en défaut après trois mois consécutifs de retard de paiement sévère, de 90 jours ou plus. Pour le segment Entreprises, dont le suivi est trimestriel, un client est considéré en défaut après deux trimestres consécutifs dans la catégorie de notation CCC\_D, qui représente le niveau le plus dégradé de l'échelle retenue.
+
+\subsection{Génération des historiques synthétiques}
+
+En l'absence d'historique de crédit réel, rappelée en section~3.1, les trajectoires de remboursement et de défaut des clients ont été générées par simulation, à l'aide de chaînes de Markov : chaque client évolue, période après période, entre plusieurs états représentant son niveau de retard de paiement pour les Particuliers, ou sa notation pour les Entreprises, selon des probabilités de transition calibrées pour chaque segment. Ces transitions sont rendues sensibles à des variables macroéconomiques, le chômage et la croissance pour le segment Particuliers, la croissance et des taux propres à chaque secteur d'activité pour le segment Entreprises, de sorte que la probabilité de dégradation d'un client varie avec le contexte économique simulé plutôt que de rester constante dans le temps. Le détail des états et des matrices de transition retenues est présenté en annexe~C.
+
+Les probabilités de transition sont calibrées autour de taux de défaut cibles de 7~\% pour le segment Particuliers et de 9~\% pour le segment Entreprises, à l'échelle des populations simulées. Ces taux cibles de calibration ne doivent pas être confondus avec le taux de défaut mesuré dans les échantillons d'évaluation des modèles, présenté en section~3.5, qui constitue une grandeur différente. Le taux cible du segment Entreprises a par ailleurs été révisé de 14~\% à 9~\%, après qu'une vérification du générateur a révélé une anomalie dans le mécanisme de simulation des notations. Après correction, le taux de 9~\% a été retenu comme valeur de calibration cohérente avec le comportement du générateur corrigé, et non comme un ajustement destiné à obtenir un résultat prédéfini.
+
+\subsection{Construction des observations et horizons prédictifs}
+
+Les trajectoires ainsi simulées sont ensuite observées à intervalles réguliers, un snapshot mensuel pour le segment Particuliers, trimestriel pour le segment Entreprises, afin de constituer les observations utilisées pour la modélisation. Chaque snapshot associe, à un client et à une date donnée, les variables explicatives construites en section~3.2 et l'indication de survenue ou non d'un défaut au cours de l'horizon prédictif suivant cette date : douze mois pour les Particuliers, quatre trimestres pour les Entreprises.
+
+\section{Développement des modèles de PD}
+
+\subsection{Démarche de modélisation}
+
+Pour chaque segment, Particuliers et Entreprises, plusieurs algorithmes candidats sont entraînés et évalués selon un protocole commun, afin de retenir un modèle champion ; les autres algorithmes évalués sont conservés à titre de challengers. Cette architecture champion/challenger permet de documenter la comparaison entre plusieurs approches plutôt que de présenter un algorithme unique sans alternative examinée.
+
+Le protocole appliqué à chaque algorithme candidat d'un même segment est identique : mêmes variables explicatives, mêmes jeux d'entraînement, de calibration et de test, et mêmes métriques d'évaluation, détaillées en section~3.6. Le champion est désigné automatiquement parmi les candidats évalués, en retenant celui dont l'aire sous la courbe ROC (AUC), calculée sur le jeu de test, est la plus élevée.
+
+Cette méthode appelle une réserve méthodologique qu'il convient d'exposer clairement plutôt que de l'omettre. Le jeu de test sert à la fois à sélectionner le champion et à rapporter les performances finales de ce même champion, présentées en section~3.6. Cette double utilisation introduit un risque d'optimisme dans l'estimation de ces performances, puisque le modèle retenu l'est précisément parce qu'il obtient le meilleur résultat sur ce jeu de test. Ce risque n'est pas quantifié dans le cadre de ce projet. Il doit néanmoins être pris en compte dans l'interprétation des résultats de la section~3.6. La mise en place d'un jeu de validation distinct, réservé à la sélection du champion et laissant le jeu de test exclusivement consacré à l'évaluation finale, constitue à ce titre une amélioration méthodologique identifiée, mais non mise en \oe{}uvre dans le cadre de ce projet.
+
+\subsection{Sélection des algorithmes et stratégie de validation par segment}
+
+Les algorithmes candidats diffèrent entre les deux segments. Pour le segment Particuliers, une régression logistique et un modèle XGBoost sont comparés ; un modèle LightGBM a également été évalué, puis écarté avant la désignation du champion, pour un résultat insuffisant (AUC de 0,49, proche du hasard) et un surapprentissage constaté sur le découpage retenu pour ce segment. Pour le segment Entreprises, un modèle XGBoost, un modèle LightGBM et une régression logistique, retenue comme modèle de référence, sont comparés.
+
+Les deux segments ne partagent ni la même temporalité d'observation ni la même structure d'identifiant de compte, rappelées en section~3.2 ; la stratégie de séparation entre entraînement et test diffère donc entre eux.
+
+Pour le segment Particuliers, les comptes (et non directement les lignes) sont d'abord partitionnés en trois pools disjoints, entraînement, calibration et test, selon des proportions de 55~\%, 15~\% et 30~\%, stratifiées sur le statut \og jamais en défaut / au moins un défaut observé \fg{} afin de préserver le taux de défaut dans chaque pool ; l'absence de tout recouvrement de comptes entre ces pools est vérifiée de façon bloquante. Chaque pool ne fournit ensuite que les lignes correspondant à sa maturité : les pools d'entraînement et de calibration conservent les snapshots d'ancienneté 6 et 12 mois, le pool de test conserve le snapshot d'ancienneté 24 mois. Cette double séparation, par compte puis par ancienneté, corrige une fuite de données identifiée sur les données réelles du projet : un découpage antérieur, fondé sur l'ancienneté seule, laissait la totalité des comptes du jeu de test déjà présents dans le jeu d'entraînement à une ancienneté antérieure, ce qui permettait à un modèle capable de mémoriser de reconnaître un compte plutôt que d'être réellement évalué sur sa capacité de généralisation, les variables statiques d'un compte étant identiques entre ses différents snapshots. Une limite résiduelle, assumée et non corrigée dans ce lot, subsiste malgré cette correction : si les comptes des trois pools restent, eux, strictement disjoints, environ 60~\% des lignes du jeu d'entraînement portent sur un mois calendaire compris dans la plage de mois couverte par le jeu de test. La séparation par compte est ainsi assurée, mais la séparation calendaire reste partielle, l'horizon de simulation de 60 mois ne permettant pas un découpage calendaire complet sans perdre l'essentiel du volume disponible.
+
+Pour le segment Entreprises, la séparation des données est construite à l'aide de \texttt{StratifiedGroupKFold}, avec cinq plis et un regroupement par compte. Cette méthode garantit qu'un même compte ne figure pas simultanément dans les ensembles d'entraînement et de validation d'un même pli. La stratification contribue par ailleurs à préserver une répartition comparable des défauts entre les plis, ceux-ci restant minoritaires. Parmi les cinq séparations ainsi générées, seule celle correspondant au dernier pli est retenue pour constituer les ensembles finaux d'entraînement et de test ; les quatre autres ne sont pas utilisées dans la sélection du champion ni dans le calcul des métriques finales présentées en section~3.6.
+
+Ces deux choix sont d'abord justifiés par la structure propre des données de chaque segment, et par la nécessité d'éviter toute fuite d'information entre les observations utilisées pour l'entraînement et celles utilisées pour l'évaluation. Ils rejoignent par ailleurs, à titre de principes de validation plutôt que de prescription directe, certaines exigences formulées par le Comité de Bâle dans le cadre de l'approche notations internes (IRB), notamment les exigences relatives aux tests de performance hors période et hors échantillon (CRE36.36), ainsi qu'à la représentativité des données utilisées pour l'estimation (CRE36.67) \parencite{BCBS_CRE36}. Ces exigences réglementaires concernent les établissements qui utilisent l'approche IRB pour le calcul de leurs exigences de fonds propres ; elles ne s'appliquent pas en tant que telles à ce projet, qui ne constitue pas une validation réglementaire. Elles fournissent néanmoins un cadre de référence pour comprendre l'importance de la représentativité des données et de la distinction entre les observations utilisées pour construire un modèle et celles utilisées pour en évaluer les performances.
+
+Le tableau~\ref{tab:strategies-validation} résume ces deux stratégies.
+
+\begin{table}[htbp]
+    \centering
+    \footnotesize
+    \caption{Synthèse des stratégies de validation par segment.}
+    \label{tab:strategies-validation}
+    \begin{tabular}{p{2.6cm}p{5.2cm}p{5.2cm}}
+        \toprule
+        \textbf{Élément} & \textbf{Particuliers} & \textbf{Entreprises} \\
+        \midrule
+        Stratégie & Partition des comptes en 3 pools disjoints, puis sélection par maturité & Validation croisée stratifiée et groupée par compte \\
+        \addlinespace
+        Méthode & Pools entraînement/calibration/test de comptes (55/15/30) ; entraînement et calibration : snapshots d'ancienneté 6 et 12 mois ; test : snapshot d'ancienneté 24 mois & \texttt{StratifiedGroupKFold}, 5 plis, groupe = compte ; seul le dernier pli retenu comme séparation finale \\
+        \addlinespace
+        Critère principal & Absence de recouvrement de comptes entre pools, puis ancienneté des observations & Regroupement par compte \\
+        \addlinespace
+        Objectif & Éviter qu'un compte déjà vu à l'entraînement ne soit reconnu plutôt qu'évalué sur sa généralisation, et observer le maintien des performances à une maturité plus élevée & Éviter la présence d'un même compte à la fois dans l'entraînement et dans la validation \\
+        \addlinespace
+        Précaution & Vérification bloquante de l'absence de recouvrement de comptes entre pools & Préservation de la répartition des défauts entre les plis \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Entraînement et optimisation}
+
+Les hyperparamètres des modèles XGBoost et LightGBM sont recherchés par optimisation bayésienne, à l'aide de la bibliothèque Optuna et de son échantillonneur TPE (\emph{Tree-structured Parzen Estimator}). Pour chaque segment, la fonction objectif maximisée est l'AUC moyenne obtenue par une validation croisée interne à 3 plis, réalisée uniquement sur le jeu d'entraînement : le jeu de test, décrit ci-dessus, n'intervient à aucun moment de cette recherche d'hyperparamètres.
+
+Cette validation croisée interne est une validation stratifiée simple à 3 plis, identique pour les deux segments ; elle n'est pas regroupée par compte pour le segment Entreprises, contrairement au découpage externe présenté précédemment. Un même compte peut donc apparaître à la fois dans l'ensemble d'apprentissage et dans celui de validation d'un pli au cours de cette recherche d'hyperparamètres. Cette situation introduit un risque de fuite d'information au sein de l'optimisation, susceptible de rendre les scores de validation interne plus favorables qu'ils ne le seraient avec une séparation stricte par compte. Cette limite concerne l'étape de recherche des hyperparamètres et doit être distinguée de la séparation externe, qui reste regroupée par compte.
+
+\subsection{Calibration des probabilités}
+
+Au-delà de leur capacité à ordonner correctement les emprunteurs selon leur risque, mesurée par l'AUC, les probabilités produites par les modèles doivent également être correctement calibrées, c'est-à-dire refléter un niveau de risque numériquement interprétable. Cette calibration, réalisée par une méthode de Platt ou une régression isotonique selon le cas, repose dans les deux segments sur des prédictions hors échantillon par rapport au modèle de PD qu'elle calibre, bien que ce caractère hors échantillon soit obtenu par deux mécanismes différents. Pour le segment Particuliers, la calibration utilise le pool de comptes dédié présenté en section~3.4.2, disjoint à la fois des comptes d'entraînement et des comptes de test. Pour le segment Entreprises, elle repose sur une procédure de validation croisée dédiée, décrite ci-après. Le jeu de test n'intervient pas dans l'ajustement des fonctions de calibration. Il reste toutefois utilisé pour la sélection du modèle champion et l'évaluation finale de ses performances, comme précisé en section~3.4.1.
+
+Pour le segment Entreprises, la première stratégie de calibration reposait sur un échantillon qui ne contenait qu'une vingtaine de défauts, un nombre jugé insuffisant pour obtenir une calibration suffisamment fiable. Une calibration dite \emph{cross-fittée} a été mise en place pour remédier à cette limite : le modèle est entraîné sur plusieurs sous-ensembles du jeu d'entraînement, puis utilisé pour produire des prédictions hors échantillon sur la partie qu'il n'a pas vue à chacune de ces étapes ; l'ensemble de ces prédictions hors échantillon, une fois rassemblées, constitue l'échantillon de calibration effectivement utilisé. Cette méthode a permis de porter le nombre de défauts disponibles pour l'ajustement de la fonction de calibration d'une vingtaine à environ 135, avec des prédictions toutes produites hors échantillon : chaque observation y est évaluée par un modèle qui n'a pas été entraîné sur celle-ci.
+
+\section{Développement du modèle de LGD}
+
+\subsection{Construction de la variable cible et préparation des données}
+
+Au-delà de la probabilité de défaut, la perte en cas de défaut (LGD) constitue la seconde composante de la perte attendue présentée au chapitre 1 : elle exprime, pour un compte en défaut, la part de l'exposition qui ne serait pas recouvrée. Comme pour la variable cible de la PD, cette grandeur n'est observable dans aucune donnée réelle du projet, rappelé en section~3.1 ; elle est construite par simulation, à partir d'un tirage aléatoire de type Beta du taux de recouvrement, conditionné par le type de garantie du compte. Ce taux brut est ensuite actualisé au taux directeur en vigueur au moment du défaut et net d'un coût de recouvrement (\emph{workout cost}), de sorte que la LGD obtenue, $LGD = 1 - \text{Recouvrement net}$, appartient à l'intervalle $[0,1]$ par construction, sans recours à un écrêtage artificiel.
+
+Cette construction ne s'applique qu'aux comptes ayant effectivement connu un premier événement de défaut au cours de la trajectoire simulée, rappelée en section~3.3 : la LGD n'étant observable que pour ces comptes, la population d'entraînement est nécessairement restreinte à eux, soit 2~157 défauts pour le segment Particuliers et 135 défauts pour le segment Entreprises. Les variables explicatives retenues sont au nombre de deux : le ratio de couverture du crédit par sa garantie (\texttt{ratio\_couverture}) et le type de garantie (\texttt{type\_garantie}), cette dernière étant encodée par indicatrices (\emph{one-hot}).
+
+\subsection{Développement et sélection du modèle}
+
+Deux modèles candidats sont comparés pour prédire cette LGD. Une régression linéaire constitue le modèle de référence, interprétable mais susceptible de produire des valeurs hors de l'intervalle $[0,1]$ attendu pour une proportion. Une régression Beta, estimée par maximum de vraisemblance, lui est opposée comme modèle candidat principal : la LGD y est modélisée directement comme une variable suivant une loi Beta, $LGD \sim \text{Beta}(\mu\varphi, (1-\mu)\varphi)$, où $\mu$ est l'espérance prédite par le modèle (via une fonction sigmoïde des variables explicatives) et $\varphi$ un paramètre de précision estimé conjointement. Cette distribution est adaptée aux proportions bornées et permet de représenter une concentration aux extrémités de l'intervalle, par exemple une LGD proche de 0 pour un crédit bien garanti et proche de 1 pour un crédit sans garantie.
+
+Le choix entre les deux modèles repose sur le critère d'information bayésien (BIC), qui tient compte de l'ajustement du modèle aux données tout en pénalisant sa complexité. Ce critère est utilisé ici pour comparer les deux approches sur les données d'entraînement ; il ne constitue toutefois pas une mesure de leur capacité de généralisation sur de nouvelles observations. Pour les deux segments, la régression Beta obtient un BIC inférieur à celui de la régression linéaire et est désignée championne : $-8\,175$ contre $-2\,534$ pour les Particuliers, $-242$ contre $-93$ pour les Entreprises.
+
+\subsection{Prédiction et utilisation de la LGD}
+
+Si l'entraînement du modèle de LGD est restreint, par nécessité, aux seuls comptes ayant connu un défaut, sa prédiction est en revanche appliquée à l'ensemble des comptes du portefeuille, qu'ils soient actuellement en défaut ou non : le calcul des pertes attendues présenté au chapitre 4 nécessite une LGD estimée pour chaque compte, à partir de ses seules caractéristiques de garantie, indépendamment de son état de défaut courant. La LGD ainsi prédite, combinée à la probabilité de défaut présentée en section~3.4 et à l'exposition au moment du défaut, alimente directement le calcul de la perte attendue développé au chapitre suivant.
+
+\section{Évaluation, sélection et interprétabilité}
+
+\subsection{Évaluation des performances et sélection des modèles}
+
+La capacité des modèles à distinguer les emprunteurs selon leur niveau de risque est mesurée par trois indicateurs usuels en scoring de crédit. L'AUC (\emph{Area Under the Curve}) correspond à la probabilité qu'une paire d'emprunteurs, l'un en défaut et l'autre non, soit correctement ordonnée par le modèle ; elle varie entre 0,5 (pouvoir discriminant nul) et 1 (séparation parfaite). Le coefficient de Gini, défini par $2 \times \text{AUC} - 1$, en est une transformation linéaire d'usage courant dans le secteur bancaire. La statistique de Kolmogorov-Smirnov (KS) mesure l'écart maximal entre les distributions cumulées des scores des emprunteurs en défaut et de ceux qui ne le sont pas, et reflète la séparation la plus nette que le modèle parvient à établir entre les deux populations.
+
+Le tableau~\ref{tab:performance-pd} présente ces trois indicateurs, calculés sur le jeu de test, pour l'ensemble des algorithmes candidats des deux segments.
+
+\begin{table}[htbp]
+    \centering
+    \footnotesize
+    \caption{Performances discriminantes des modèles de PD, par segment.}
+    \label{tab:performance-pd}
+    \begin{tabular}{p{2.4cm}p{4cm}p{1.8cm}p{1.8cm}p{1.8cm}}
+        \toprule
+        \textbf{Segment} & \textbf{Modèle} & \textbf{AUC} & \textbf{Gini} & \textbf{KS} \\
+        \midrule
+        Particuliers & Régression logistique (champion) & 0,7219 & 0,4438 & 0,3801 \\
+        Particuliers & XGBoost & 0,6541 & 0,3082 & 0,2978 \\
+        \addlinespace
+        Entreprises & XGBoost (champion) & 0,8881 & 0,7761 & 0,6408 \\
+        Entreprises & LightGBM & 0,8515 & 0,7031 & 0,5743 \\
+        Entreprises & Régression logistique & 0,8122 & 0,6244 & 0,5227 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Pour le segment Particuliers, la régression logistique domine nettement le modèle XGBoost sur les trois indicateurs, et est désignée championne conformément au critère décrit en section~3.4.1. Pour le segment Entreprises, XGBoost domine à la fois LightGBM et la régression logistique de référence, et est désigné champion selon le même critère ; l'écart entre les trois algorithmes y est toutefois plus resserré que pour les Particuliers. Ces désignations reposent, pour rappel, sur l'AUC du même jeu de test que celui utilisé pour rapporter les performances ci-dessus, ce qui introduit un risque d'optimisme déjà signalé en section~3.4.1 et qui doit être gardé à l'esprit dans la lecture de ces résultats, notamment pour le segment Entreprises où les écarts entre algorithmes sont les plus faibles.
+
+\subsection{Évaluation de la calibration des probabilités}
+
+La capacité d'un modèle à ordonner correctement les emprunteurs ne garantit pas que les probabilités qu'il produit soient numériquement fiables : un modèle peut bien classer les emprunteurs tout en leur attribuant des probabilités de défaut mal calibrées. Deux indicateurs complémentaires sont utilisés pour évaluer cette fiabilité. Le \emph{Brier Score} mesure l'erreur quadratique moyenne entre la probabilité prédite et l'issue réellement observée (0 ou 1) ; plus sa valeur est faible, plus les probabilités prédites sont proches des issues réelles. L'\emph{Expected Calibration Error} (ECE) regroupe les prédictions en dix classes de probabilité croissante et mesure l'écart moyen, pondéré par la taille de chaque classe, entre la probabilité moyenne prédite et la fréquence de défaut réellement observée dans cette classe.
+
+Le tableau~\ref{tab:calibration-pd} présente ces deux indicateurs, ainsi que la probabilité moyenne calibrée (\texttt{pd\_moy\_cal}) et le taux de défaut mesuré dans l'échantillon de test (\texttt{taux\_reel}), pour les mêmes modèles.
+
+\begin{table}[htbp]
+    \centering
+    \footnotesize
+    \caption{Calibration des probabilités de PD, par segment.}
+    \label{tab:calibration-pd}
+    \begin{tabular}{p{2.4cm}p{3.6cm}p{1.6cm}p{1.6cm}p{2cm}p{1.8cm}}
+        \toprule
+        \textbf{Segment} & \textbf{Modèle} & \textbf{Brier} & \textbf{ECE} & \textbf{PD moyenne calibrée} & \textbf{Taux mesuré} \\
+        \midrule
+        Particuliers & Régression logistique (champion) & 0,0218 & 0,0093 & 0,0325 & 0,0232 \\
+        Particuliers & XGBoost & 0,0218 & 0,0067 & 0,0273 & 0,0232 \\
+        \addlinespace
+        Entreprises & XGBoost (champion) & 0,0212 & 0,0044 & 0,0249 & 0,0256 \\
+        Entreprises & LightGBM & 0,0222 & 0,0111 & 0,0228 & 0,0256 \\
+        Entreprises & Régression logistique & 0,0226 & 0,0074 & 0,0233 & 0,0256 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Ce taux mesuré dans l'échantillon de test (2,32~\% pour les Particuliers, 2,56~\% pour les Entreprises) ne doit pas être confondu avec les taux cibles de calibration du générateur synthétique, 7~\% et 9~\% respectivement, présentés en section~3.3 : ces deux grandeurs s'observent à des échelles différentes, celle de la population simulée dans son ensemble pour les taux cibles, celle du seul échantillon de test pour le taux mesuré ici. Pour les deux segments, la PD moyenne calibrée des champions reste proche du taux mesuré, sans s'y confondre exactement, ce qui est attendu d'une calibration opérant sur l'ensemble de la distribution des scores plutôt que sur sa seule moyenne. Il convient enfin de noter que les performances discriminantes et la qualité de la calibration ne se recoupent pas nécessairement : le champion Entreprises obtient à la fois la meilleure discrimination et la meilleure calibration parmi les candidats de son segment, mais ce n'est pas une propriété garantie par construction, un modèle pouvant en principe bien discriminer sans être bien calibré, ou l'inverse.
+
+\subsection{Interprétabilité des modèles par SHAP}
+
+Au-delà de leurs performances globales, les modèles retenus doivent fournir des éléments permettant de comprendre leurs résultats individuels, notamment dans le cadre de l'instruction d'une demande de crédit. Cette explicabilité repose sur les valeurs de Shapley (SHAP, \emph{SHapley Additive exPlanations}), issues de la théorie des jeux coopératifs \parencite{LundbergLee2017} : elles décomposent le score brut produit par un modèle pour une observation donnée en une contribution additive de chacune de ses variables explicatives, de sorte que la somme de ces contributions et d'une valeur de référence reconstitue exactement ce score. Le calcul de ces contributions utilise un explainer exact adapté à chaque algorithme : un \emph{TreeExplainer} pour les modèles XGBoost et LightGBM, un \emph{LinearExplainer} pour la régression logistique.
+
+Deux niveaux d'explication sont effectivement produits. Au niveau global, l'importance moyenne absolue de chaque variable sur l'ensemble du portefeuille fournit une vue d'ensemble des facteurs les plus influents pour un modèle donné, utile à l'audit du modèle et à sa documentation. Au niveau individuel, les principaux facteurs de risque et facteurs protecteurs d'un dossier particulier sont identifiés et conservés dans le fil d'audit associé à la décision, afin d'apporter des éléments d'explication a posteriori à la décision.
+
+Ces explications portent sur les scores produits par le modèle avant calibration, la calibration étant appliquée séparément, comme décrit en section~3.4.4 ; elles décrivent donc la contribution de chaque variable au score du modèle, non aux probabilités calibrées finalement restituées à l'utilisateur. Deux limites doivent par ailleurs être gardées à l'esprit dans leur interprétation. D'une part, une contribution SHAP élevée indique l'importance d'une variable pour la prédiction d'\emph{un modèle donné} ; elle ne constitue pas une preuve que cette variable est, dans la réalité, une cause du défaut. D'autre part, puisque les modèles présentés dans ce chapitre ont été entraînés sur des historiques de défaut synthétiques, rappelé en section~3.1, les facteurs mis en évidence par SHAP reflètent la façon dont le générateur de données a construit la relation entre les variables et le défaut, et non nécessairement la dynamique réelle du risque de crédit dans un portefeuille bancaire.
+
+\subsection{Évaluation des modèles de LGD}
+
+L'évaluation des modèles de LGD, présentés en section~3.5, appelle une précaution méthodologique distincte de celle des modèles de PD. Le tableau~\ref{tab:performance-lgd} présente, pour les deux segments, l'erreur quadratique moyenne (RMSE), le coefficient de détermination ($R^2$) et le BIC des deux modèles candidats.
+
+\begin{table}[htbp]
+    \centering
+    \footnotesize
+    \caption{Performances des modèles de LGD, par segment.}
+    \label{tab:performance-lgd}
+    \begin{tabular}{p{2.4cm}p{3.2cm}p{1.8cm}p{1.8cm}p{2cm}}
+        \toprule
+        \textbf{Segment} & \textbf{Modèle} & \textbf{RMSE} & \textbf{$R^2$} & \textbf{BIC} \\
+        \midrule
+        Particuliers & Régression linéaire & 0,1328 & 0,8000 & $-2\,534$ \\
+        Particuliers & Beta Regression (champion) & 0,1329 & 0,7998 & $-8\,175$ \\
+        \addlinespace
+        Entreprises & Régression linéaire & 0,1512 & 0,6426 & $-93$ \\
+        Entreprises & Beta Regression (champion) & 0,1512 & 0,6424 & $-242$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Ces valeurs appellent une lecture différente de celles présentées pour la PD. D'une part, à la différence des modèles de PD, dont l'AUC/Gini/KS et les indicateurs de calibration sont calculés sur un jeu de test distinct de l'entraînement, les métriques de LGD ci-dessus sont calculées sur les mêmes données que celles utilisées pour entraîner les modèles : elles ne constituent pas une évaluation hors échantillon et ne doivent pas être lues comme telle. Le projet documente d'ailleurs lui-même cette distinction, en qualifiant explicitement cette base d'évaluation d'\emph{in-sample} pour la LGD, par opposition à la validation hors échantillon réelle dont bénéficient les modèles de PD. D'autre part, l'échantillon d'entraînement du segment Entreprises ne compte que 135 défauts, un volume restreint qui limite la robustesse des conclusions qui peuvent en être tirées, au-delà même de la question de l'échantillon d'évaluation. Le RMSE et le $R^2$ très proches entre les deux modèles candidats, pour les deux segments, confirment que l'écart entre eux tient avant tout à la pénalisation de complexité du BIC plutôt qu'à une différence marquée de leur ajustement aux données.
+
+\section*{Conclusion du chapitre}
+
+Ce chapitre a retracé l'ensemble de la démarche qui mène d'une source de données réelle, mais limitée, à des modèles de risque de crédit évalués et, pour la PD, interprétables. La source réelle, un fichier de comptes de dépôt, a fourni une structure de clientèle authentique, mais ne contenait ni historique de crédit ni défaut observé ; cette limite a rendu nécessaire la génération d'historiques de défaut et de recouvrement synthétiques, construits par simulation et calibrés par segment, dont la construction a été détaillée et dont les limites ont été assumées plutôt que dissimulées. Sur ces données, deux composantes de la perte attendue ont été modélisées. Pour la probabilité de défaut, deux pipelines distincts, adaptés aux caractéristiques propres des segments Particuliers et Entreprises, ont permis de retenir une régression logistique pour les Particuliers et un modèle XGBoost pour les Entreprises, avec une attention portée à la prévention des fuites de données, y compris lorsqu'une telle fuite a été identifiée et corrigée en cours de projet ; ces modèles ont ensuite été évalués selon leur capacité de discrimination et la fiabilité de leurs probabilités, sur un jeu de test distinct de l'entraînement, puis rendus interprétables par les valeurs de Shapley. Pour la perte en cas de défaut, une régression Beta a été retenue pour les deux segments, entraînée sur la seule population des comptes en défaut et évaluée en conditions in-sample, une limite assumée plutôt que dissimulée. Les réserves méthodologiques rencontrées au long de ce cheminement, qu'elles concernent la sélection du champion de PD, l'évaluation in-sample de la LGD ou la nature synthétique des données d'entraînement, ont été exposées explicitement. Les performances présentées attestent ainsi du comportement des modèles sur les données construites pour le projet, sans démontrer leur capacité prédictive sur des défauts bancaires réels. Le chapitre suivant mobilise ces modèles de probabilité de défaut et de perte en cas de défaut, aux côtés d'une exposition au défaut calculée mécaniquement, pour aborder la quantification du risque, du capital et de la rentabilité, jusqu'à l'aide à la décision d'octroi.

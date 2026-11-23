@@ -1,0 +1,107 @@
+% ============================================================
+% Rapport de PFE — Credit Risk Intelligence Platform
+% Compilation : pdfLaTeX, puis biber pour la bibliographie
+%   (séquence Overleaf/latexmk standard : pdflatex -> biber -> pdflatex -> pdflatex)
+% ============================================================
+
+\documentclass[12pt]{report}
+
+% ---------- Mise en page ----------
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{mathptmx}          % police façon Times New Roman
+\usepackage{setspace}
+\setstretch{1.15}              % interligne 1,15
+\usepackage{csquotes}          % guillemets français via \enquote{...}
+
+% ---------- Paragraphes ----------
+\setlength{\parindent}{0.5cm}  % alinéa de première ligne
+\setlength{\parskip}{0pt}
+
+% ---------- Figures, tableaux ----------
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning}
+\usepackage{svg}              % logos technologiques (chapitre 6) — rendu via Inkscape sur Overleaf
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,raster}
+
+% ---------- Titres hiérarchisés (tailles décroissantes) ----------
+\usepackage{titlesec}
+\titleformat{\chapter}[display]{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+% ---------- Pagination "page / total", en bas à droite ----------
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[R]{\thepage\ / \pageref{LastPage}}
+
+% ---------- Bibliographie ----------
+\usepackage[backend=biber,style=authoryear,sorting=nyt]{biblatex}
+\addbibresource{biblio.bib}
+
+% ---------- Références croisées ----------
+\usepackage[hidelinks]{hyperref}
+
+% ---------- Cartes technologiques (chapitre 6) ----------
+\tcbset{
+  techcard/.style={
+    colback=white, colframe=black!35, boxrule=0.4pt,
+    arc=2mm, width=4.3cm, height=5.4cm,
+    valign=top, halign=center, boxsep=2pt, left=3pt, right=3pt, top=6pt, bottom=4pt,
+  }
+}
+\newcommand{\techcard}[4]{%
+  \begin{tcolorbox}[techcard]
+    \includesvg[height=1cm]{#1}\\[5pt]
+    {\bfseries #2}\\[2pt]
+    {\footnotesize\itshape #3}\\[5pt]
+    {\footnotesize #4}
+  \end{tcolorbox}%
+}
+% Variante sans logo — aucune icône de marque officielle disponible
+% pour cet outil (vérifié), jamais un logo approximatif substitué.
+\newcommand{\techcardtext}[3]{%
+  \begin{tcolorbox}[techcard]
+    \rule{0pt}{1cm}\\[5pt]
+    {\bfseries #1}\\[2pt]
+    {\footnotesize\itshape #2}\\[5pt]
+    {\footnotesize #3}
+  \end{tcolorbox}%
+}
+
+\begin{document}
+
+\input{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{chapters/introduction}
+\input{chapters/chapitre1}
+\input{chapters/chapitre2}
+\input{chapters/chapitre3}
+\input{chapters/chapitre4}
+\input{chapters/chapitre5}
+\input{chapters/chapitre6}
+\input{chapters/conclusion}
+
+\printbibliography[title={Bibliographie et netographie}]
+
+\appendix
+\input{annexes}
+
+\end{document}
